@@ -1,12 +1,16 @@
 #include <Arduino.h>
 #include <IRremote.hpp>
 
+#define IR_USE_AVR_TIMER1
 #define IR_RECEIVE_PIN 12 // Pin pro připojení IR přijímače
-
 // Definice pinů pro LED diody
-#define RED_LED_PIN 3
-#define GREEN_LED_PIN 5
-#define BLUE_LED_PIN 6
+#define RED_LED_PIN 5
+#define GREEN_LED_PIN 6
+#define BLUE_LED_PIN 9
+// Enter pro každou barvu
+#define RED_ENTER 3125149440
+#define GREEN_ENTER 3108437760
+#define BLUE_ENTER 3091726080
 
 // Definice IR kódů pro jednotlivá tlačítka
 unsigned long codes[] = {
@@ -21,13 +25,27 @@ unsigned long codes[] = {
     2907897600, // 8
     3041591040, // 9
 };
+int codesLength = sizeof(codes) / sizeof(codes[0]);
+String stringNum = "";
 
-// Definice barev
-#define RED 0
-#define GREEN 1
-#define BLUE 2
+void reset(){
+  for (int i = RED_LED_PIN; i < BLUE_LED_PIN; i++)
+  {
+    analogWrite(i, LOW);
+  }
+}
 
-int selectedColor = -1; // Vybraná barva LED
+String input(unsigned long irData)
+{
+  for (int i = 0; i < codesLength; i++)
+  {
+    if (irData == codes[i])
+    {
+      return String(i);
+    }
+  }
+  return "";
+}
 
 void setup()
 {
@@ -35,28 +53,7 @@ void setup()
   pinMode(RED_LED_PIN, OUTPUT);                          // Nastavení pinu červené LED jako výstup
   pinMode(GREEN_LED_PIN, OUTPUT);                        // Nastavení pinu zelené LED jako výstup
   pinMode(BLUE_LED_PIN, OUTPUT);                         // Nastavení pinu modré LED jako výstup
-}
-
-void setLedColor(int color)
-{
-  switch (color)
-  {
-  case RED:
-    digitalWrite(RED_LED_PIN, HIGH);
-    digitalWrite(GREEN_LED_PIN, LOW);
-    digitalWrite(BLUE_LED_PIN, LOW);
-    break;
-  case GREEN:
-    digitalWrite(RED_LED_PIN, LOW);
-    digitalWrite(GREEN_LED_PIN, HIGH);
-    digitalWrite(BLUE_LED_PIN, LOW);
-    break;
-  case BLUE:
-    digitalWrite(RED_LED_PIN, LOW);
-    digitalWrite(GREEN_LED_PIN, LOW);
-    digitalWrite(BLUE_LED_PIN, HIGH);
-    break;
-  }
+  Serial.begin(9600);
 }
 
 void loop()
@@ -64,21 +61,30 @@ void loop()
   if (IrReceiver.decode())
   {
     unsigned long irData = IrReceiver.decodedIRData.decodedRawData; // Přečtení kodu z přijímače
-
-    for (int i = 0; i < sizeof(codes) / sizeof(codes[0]); i++)
+    if (irData > 0)
     {
-      if (irData == codes[i])
+      if (irData == RED_ENTER)
       {
-        selectedColor = i;
-        break;
+        reset();
+        int intNum = stringNum.toInt();
+        if (intNum < 256)
+        {
+          analogWrite(RED_LED_PIN, intNum);
+          stringNum = "";
+        }
+        else
+        {
+          Serial.println("Mimo rozsah");
+          reset();
+          stringNum = "";
+        }
+      }
+      else
+      {
+        stringNum += input(irData);
+        Serial.println(stringNum);
       }
     }
-
-    if (selectedColor != -1)
-    {
-      setLedColor(selectedColor);
-    }
-
     IrReceiver.resume();
   }
 }
