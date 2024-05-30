@@ -2,7 +2,7 @@
 #include <IRremote.hpp>
 
 #define IR_USE_AVR_TIMER1
-#define IR_RECEIVE_PIN 12 // Pin pro připojení IR přijímače
+#define IR_RECEIVE_PIN 12 // Pin pro připojení IR přijímače (DŮLEŽITÝ)
 // Definice pinů pro LED diody
 #define RED_LED_PIN 5
 #define GREEN_LED_PIN 6
@@ -28,27 +28,38 @@ unsigned long codes[] = {
 int codesLength = sizeof(codes) / sizeof(codes[0]);
 String stringNum = "";
 
-void reset(){
-  for (int i = RED_LED_PIN; i < BLUE_LED_PIN; i++)
-  {
+// Funkce pro resetování LED diod
+void resetLEDs() {
+  for (int i = RED_LED_PIN; i <= BLUE_LED_PIN; i++) {
     analogWrite(i, LOW);
   }
 }
 
-String input(unsigned long irData)
-{
-  for (int i = 0; i < codesLength; i++)
-  {
-    if (irData == codes[i])
-    {
+// Funkce pro získání vstupu z IR kódu
+String getInputFromIR(unsigned long irData) {
+  for (int i = 0; i < codesLength; i++) {
+    if (irData == codes[i]) {
       return String(i);
     }
   }
   return "";
 }
 
-void setup()
-{
+// Funkce pro zpracování IR kódu a ovládání LED diod
+void processIRCode(unsigned long irData, int ledPin) {
+  resetLEDs();
+  int intNum = stringNum.toInt();
+  if (intNum < 256) {
+    analogWrite(ledPin, intNum);
+    stringNum = "";
+  } else {
+    Serial.println("Mimo rozsah");
+    resetLEDs();
+    stringNum = "";
+  }
+}
+
+void setup() {
   IrReceiver.begin(IR_RECEIVE_PIN, ENABLE_LED_FEEDBACK); // Inicializace přijimače
   pinMode(RED_LED_PIN, OUTPUT);                          // Nastavení pinu červené LED jako výstup
   pinMode(GREEN_LED_PIN, OUTPUT);                        // Nastavení pinu zelené LED jako výstup
@@ -56,35 +67,21 @@ void setup()
   Serial.begin(9600);
 }
 
-void loop()
-{
-  if (IrReceiver.decode())
-  {
+void loop() {
+  if (IrReceiver.decode()) { // Pokud je načtena hodnota z ovladače
     unsigned long irData = IrReceiver.decodedIRData.decodedRawData; // Přečtení kodu z přijímače
-    if (irData > 0)
-    {
-      if (irData == RED_ENTER)
-      {
-        reset();
-        int intNum = stringNum.toInt();
-        if (intNum < 256)
-        {
-          analogWrite(RED_LED_PIN, intNum);
-          stringNum = "";
-        }
-        else
-        {
-          Serial.println("Mimo rozsah");
-          reset();
-          stringNum = "";
-        }
-      }
-      else
-      {
-        stringNum += input(irData);
-        Serial.println(stringNum);
+    if (irData > 0) {
+      if (irData == RED_ENTER) {
+        processIRCode(irData, RED_LED_PIN);
+      } else if (irData == GREEN_ENTER) {
+        processIRCode(irData, GREEN_LED_PIN);
+      } else if (irData == BLUE_ENTER) {
+        processIRCode(irData, BLUE_LED_PIN);
+      } else {
+        stringNum += getInputFromIR(irData); // Postupné kumulování zadaného řetězce
+        Serial.println(stringNum); // Výpis řetězce na sériovou linku
       }
     }
-    IrReceiver.resume();
+    IrReceiver.resume(); // Příprava na další vstup
   }
 }
